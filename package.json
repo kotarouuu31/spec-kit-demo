@@ -1,0 +1,38 @@
+{
+  "name": "todo-app",
+  "version": "1.0.0",
+  "type": "module",
+  "description": "個人用タスク管理ToDoアプリ - シンプルで直感的なタスク管理",
+  "main": "src/main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "vitest",
+    "test:ui": "vitest --ui",
+    "test:run": "vitest run",
+    "lint": "eslint src tests --ext .js",
+    "format": "prettier --write src tests --ext .js"
+  },
+  "keywords": [
+    "todo",
+    "task-management",
+    "vite",
+    "vanilla-js",
+    "sqlite"
+  ],
+  "author": "Todo App Developer",
+  "license": "MIT",
+  "devDependencies": {
+    "@vitest/ui": "^1.0.0",
+    "eslint": "^8.0.0",
+    "jsdom": "^26.1.0",
+    "prettier": "^3.0.0",
+    "vite": "^5.0.0",
+    "vitest": "^1.0.0"
+  },
+  "dependencies": {
+    "better-sqlite3": "^9.0.0",
+    "date-fns": "^2.30.0"
+  }
+}
