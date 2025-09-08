@@ -1,15 +1,16 @@
 // TaskFormクラス - タスクフォーム管理
-export class TaskForm {
+import { BaseComponent, DOMHelper } from '../utils/dom-helpers.js'
+import { taskValidator } from '../utils/validation.js'
+import { logger } from '../utils/logger.js'
+
+export class TaskForm extends BaseComponent {
   constructor(container, database) {
-    if (!container || !(container instanceof HTMLElement)) {
-      throw new Error('Container must be a valid HTML element')
-    }
+    super(container)
     
     if (!database) {
       throw new Error('Database must be provided')
     }
 
-    this.container = container
     this.database = database
     this.mode = 'create' // 'create' or 'edit'
     this.currentTask = null
@@ -20,82 +21,71 @@ export class TaskForm {
 
   // 初期化
   init() {
-    this.container.className = 'modal'
-    this.container.style.display = 'none'
+    DOMHelper.addClass(this.container, 'modal')
+    DOMHelper.toggleDisplay(this.container, false)
     this.cacheElements()
     this.setupEventListeners()
   }
 
   // DOM要素をキャッシュ
   cacheElements() {
-    this.elements = {
-      modalTitle: this.container.querySelector('#modal-title, .modal-title'),
-      form: this.container.querySelector('#task-form, .task-form'),
-      
-      // フォームフィールド
-      textInput: this.container.querySelector('#task-text, [name="text"]'),
-      prioritySelect: this.container.querySelector('#task-priority, [name="priority"]'),
-      dueDateInput: this.container.querySelector('#task-due-date, [name="due_date"]'),
-      
-      // エラー表示
-      textError: this.container.querySelector('#task-text-error'),
-      dueDateError: this.container.querySelector('#task-due-date-error'),
-      
-      // ボタン
-      saveButton: this.container.querySelector('[data-action="save"], .save-button'),
-      cancelButton: this.container.querySelector('[data-action="cancel"], .cancel-button'),
-      closeButton: this.container.querySelector('[data-action="close"], .modal-close'),
-      
-      // その他
-      backdrop: this.container.querySelector('.modal-backdrop')
-    }
+    // BaseComponentのcacheElementメソッドを使用
+    this.cacheElement('modalTitle', '#modal-title, .modal-title')
+    this.cacheElement('form', '#task-form, .task-form', true)
+    
+    // フォームフィールド
+    this.cacheElement('textInput', '#task-text, [name="text"]', true)
+    this.cacheElement('prioritySelect', '#task-priority, [name="priority"]', true)
+    this.cacheElement('dueDateInput', '#task-due-date, [name="due_date"]')
+    
+    // エラー表示
+    this.cacheElement('textError', '#task-text-error')
+    this.cacheElement('dueDateError', '#task-due-date-error')
+    
+    // ボタン
+    this.cacheElement('saveButton', '[data-action="save"], .save-button', true)
+    this.cacheElement('cancelButton', '[data-action="cancel"], .cancel-button')
+    this.cacheElement('closeButton', '[data-action="close"], .modal-close')
+    
+    // その他
+    this.cacheElement('backdrop', '.modal-backdrop')
   }
 
   // イベントリスナー設定
   setupEventListeners() {
     // フォーム送信
-    if (this.elements.form) {
-      this.elements.form.addEventListener('submit', (e) => {
-        e.preventDefault()
-        this.handleFormSubmit()
-      })
-    }
+    this.addEventListenerSafe('form', 'submit', (e) => {
+      e.preventDefault()
+      this.handleFormSubmit()
+    })
 
     // 保存ボタン
-    if (this.elements.saveButton) {
-      this.elements.saveButton.addEventListener('click', (e) => {
-        e.preventDefault()
-        this.handleFormSubmit()
-      })
-    }
+    this.addEventListenerSafe('saveButton', 'click', (e) => {
+      e.preventDefault()
+      this.handleFormSubmit()
+    })
 
     // キャンセルボタン
-    if (this.elements.cancelButton) {
-      this.elements.cancelButton.addEventListener('click', (e) => {
-        e.preventDefault()
-        this.handleCancel()
-      })
-    }
+    this.addEventListenerSafe('cancelButton', 'click', (e) => {
+      e.preventDefault()
+      this.handleCancel()
+    })
 
     // 閉じるボタン
-    if (this.elements.closeButton) {
-      this.elements.closeButton.addEventListener('click', (e) => {
-        e.preventDefault()
-        this.handleCancel()
-      })
-    }
+    this.addEventListenerSafe('closeButton', 'click', (e) => {
+      e.preventDefault()
+      this.handleCancel()
+    })
 
     // バックドロップクリック
-    if (this.elements.backdrop) {
-      this.elements.backdrop.addEventListener('click', (e) => {
-        if (e.target === this.elements.backdrop) {
-          this.handleCancel()
-        }
-      })
-    }
+    this.addEventListenerSafe('backdrop', 'click', (e) => {
+      if (e.target === this.getElement('backdrop')) {
+        this.handleCancel()
+      }
+    })
 
     // キーボードショートカット
-    this.container.addEventListener('keydown', (e) => {
+    DOMHelper.addEventListener(this.container, 'keydown', (e) => {
       this.handleKeyboardShortcuts(e)
     })
 
@@ -106,29 +96,25 @@ export class TaskForm {
   // リアルタイム検証設定
   setupRealTimeValidation() {
     // テキスト入力の検証
-    if (this.elements.textInput) {
-      this.elements.textInput.addEventListener('blur', () => {
+    this.addEventListenerSafe('textInput', 'blur', () => {
+      this.validateField('text')
+    })
+    
+    this.addEventListenerSafe('textInput', 'input', () => {
+      // エラーがある場合のみリアルタイムでクリア
+      if (this.validationErrors.text) {
         this.validateField('text')
-      })
-      
-      this.elements.textInput.addEventListener('input', () => {
-        // エラーがある場合のみリアルタイムでクリア
-        if (this.validationErrors.text) {
-          this.validateField('text')
-        }
-      })
-    }
+      }
+    })
 
     // 期日入力の検証
-    if (this.elements.dueDateInput) {
-      this.elements.dueDateInput.addEventListener('blur', () => {
-        this.validateField('due_date')
-      })
-      
-      this.elements.dueDateInput.addEventListener('change', () => {
-        this.validateField('due_date')
-      })
-    }
+    this.addEventListenerSafe('dueDateInput', 'blur', () => {
+      this.validateField('due_date')
+    })
+    
+    this.addEventListenerSafe('dueDateInput', 'change', () => {
+      this.validateField('due_date')
+    })
   }
 
   // レンダリング
@@ -157,33 +143,27 @@ export class TaskForm {
 
   // モーダルタイトル更新
   updateModalTitle() {
-    if (this.elements.modalTitle) {
-      this.elements.modalTitle.textContent = 
-        this.mode === 'create' ? '新規タスク作成' : 'タスク編集'
-    }
+    const titleText = this.mode === 'create' ? '新規タスク作成' : 'タスク編集'
+    DOMHelper.setText(this.getElement('modalTitle'), titleText)
   }
 
   // フォームデータ設定
   setFormData(taskData) {
-    if (this.elements.textInput) {
-      this.elements.textInput.value = taskData.text || ''
-    }
-    
-    if (this.elements.prioritySelect) {
-      this.elements.prioritySelect.value = taskData.priority || 'medium'
-    }
-    
-    if (this.elements.dueDateInput) {
-      this.elements.dueDateInput.value = taskData.due_date || ''
-    }
+    DOMHelper.setValue(this.getElement('textInput'), taskData.text || '')
+    DOMHelper.setValue(this.getElement('prioritySelect'), taskData.priority || 'medium')
+    DOMHelper.setValue(this.getElement('dueDateInput'), taskData.due_date || '')
   }
 
   // フォームデータ取得
   getFormData() {
+    const textInput = this.getElement('textInput')
+    const prioritySelect = this.getElement('prioritySelect')
+    const dueDateInput = this.getElement('dueDateInput')
+    
     const formData = {
-      text: this.elements.textInput?.value?.trim() || '',
-      priority: this.elements.prioritySelect?.value || 'medium',
-      due_date: this.elements.dueDateInput?.value || null
+      text: textInput?.value?.trim() || '',
+      priority: prioritySelect?.value || 'medium',
+      due_date: dueDateInput?.value || null
     }
 
     // 空文字列はnullに変換
@@ -196,27 +176,19 @@ export class TaskForm {
 
   // フォーム検証
   validate() {
-    this.validationErrors = {}
-    
     const formData = this.getFormData()
+    const validation = taskValidator.validate(formData)
     
-    // テキストの検証
-    if (!formData.text) {
-      this.validationErrors.text = 'タスク内容は必須です'
-    }
-    
-    // 期日の検証
-    if (formData.due_date && !this.isValidDate(formData.due_date)) {
-      this.validationErrors.due_date = '有効な日付を入力してください'
-    }
-    
-    // 優先度の検証
-    if (!['low', 'medium', 'high'].includes(formData.priority)) {
-      this.validationErrors.priority = '有効な優先度を選択してください'
+    this.validationErrors = {}
+    if (!validation.isValid) {
+      // バリデーションエラーを内部形式に変換
+      for (const [field, errors] of Object.entries(validation.errors)) {
+        this.validationErrors[field] = errors[0] // 最初のエラーメッセージを使用
+      }
     }
 
     return {
-      isValid: Object.keys(this.validationErrors).length === 0,
+      isValid: validation.isValid,
       errors: Object.keys(this.validationErrors)
     }
   }
@@ -224,38 +196,21 @@ export class TaskForm {
   // 個別フィールドの検証
   validateField(fieldName) {
     const formData = this.getFormData()
+    const fieldValue = formData[fieldName]
     
-    switch (fieldName) {
-      case 'text':
-        if (!formData.text) {
-          this.validationErrors.text = 'タスク内容は必須です'
-        } else {
-          delete this.validationErrors.text
-        }
-        break
-        
-      case 'due_date':
-        if (formData.due_date && !this.isValidDate(formData.due_date)) {
-          this.validationErrors.due_date = '有効な日付を入力してください'
-        } else {
-          delete this.validationErrors.due_date
-        }
-        break
+    try {
+      const result = taskValidator.validateField(formData, fieldName)
+      
+      if (result.isValid) {
+        delete this.validationErrors[fieldName]
+      } else {
+        this.validationErrors[fieldName] = result.errors[0]
+      }
+    } catch (error) {
+      logger.warn('フィールドバリデーションエラー', { fieldName, error: error.message })
     }
     
     this.displayFieldError(fieldName)
-  }
-
-  // 日付の有効性チェック
-  isValidDate(dateString) {
-    if (!dateString) return true // 空は有効（オプショナル）
-    
-    const dateRegex = /^\d{4}-\d{2}-\d{2}$/
-    if (!dateRegex.test(dateString)) return false
-    
-    const date = new Date(dateString + 'T00:00:00Z')
-    return date instanceof Date && !isNaN(date.getTime()) && 
-           date.toISOString().startsWith(dateString)
   }
 
   // フォーム送信処理
@@ -302,8 +257,9 @@ export class TaskForm {
 
   // フォームリセット
   reset() {
-    if (this.elements.form) {
-      this.elements.form.reset()
+    const form = this.getElement('form')
+    if (form) {
+      form.reset()
     }
     
     this.clearValidationErrors()
@@ -320,31 +276,26 @@ export class TaskForm {
 
   // 個別フィールドエラー表示
   displayFieldError(fieldName) {
-    const errorElement = this.elements[`${fieldName}Error`] || 
-                        this.container.querySelector(`#${fieldName.replace('_', '-')}-error`)
+    const errorElement = this.getElement(`${fieldName}Error`) || 
+                        DOMHelper.getElement(`#${fieldName.replace('_', '-')}-error`, this.container)
     
+    const error = this.validationErrors[fieldName]
     if (errorElement) {
-      const error = this.validationErrors[fieldName]
-      if (error) {
-        errorElement.textContent = error
-        errorElement.style.display = 'block'
-      } else {
-        errorElement.textContent = ''
-        errorElement.style.display = 'none'
-      }
+      DOMHelper.setText(errorElement, error || '')
+      DOMHelper.toggleDisplay(errorElement, !!error)
     }
     
     // 入力フィールドの状態更新
-    const inputElement = fieldName === 'due_date' ? this.elements.dueDateInput :
-                        fieldName === 'text' ? this.elements.textInput : null
+    const inputElement = fieldName === 'due_date' ? this.getElement('dueDateInput') :
+                        fieldName === 'text' ? this.getElement('textInput') : null
     
     if (inputElement) {
-      if (this.validationErrors[fieldName]) {
-        inputElement.classList.add('error')
-        inputElement.setAttribute('aria-invalid', 'true')
+      if (error) {
+        DOMHelper.addClass(inputElement, 'error')
+        DOMHelper.setAttribute(inputElement, 'aria-invalid', 'true')
       } else {
-        inputElement.classList.remove('error')
-        inputElement.removeAttribute('aria-invalid')
+        DOMHelper.removeClass(inputElement, 'error')
+        DOMHelper.removeAttribute(inputElement, 'aria-invalid')
       }
     }
   }
@@ -353,30 +304,32 @@ export class TaskForm {
   clearValidationErrors() {
     this.validationErrors = {}
     
-    // エラー表示要素をクリア
-    Object.values(this.elements).forEach(element => {
-      if (element && element.className && element.className.includes('form-error')) {
-        element.textContent = ''
-        element.style.display = 'none'
+    // 各エラー表示要素をクリア
+    const errorElements = ['textError', 'dueDateError']
+    errorElements.forEach(key => {
+      const element = this.getElement(key)
+      if (element) {
+        DOMHelper.setText(element, '')
+        DOMHelper.toggleDisplay(element, false)
       }
     })
     
     // 入力フィールドのエラー状態をクリア
-    [this.elements.textInput, this.elements.dueDateInput, this.elements.prioritySelect]
-      .forEach(element => {
-        if (element) {
-          element.classList.remove('error')
-          element.removeAttribute('aria-invalid')
-        }
-      })
+    const inputElements = ['textInput', 'dueDateInput', 'prioritySelect']
+    inputElements.forEach(key => {
+      const element = this.getElement(key)
+      if (element) {
+        DOMHelper.removeClass(element, 'error')
+        DOMHelper.removeAttribute(element, 'aria-invalid')
+      }
+    })
   }
 
   // フォーム状態更新
   updateFormState() {
     // 保存ボタンの状態
-    if (this.elements.saveButton) {
-      this.elements.saveButton.textContent = this.mode === 'create' ? '作成' : '更新'
-    }
+    const buttonText = this.mode === 'create' ? '作成' : '更新'
+    DOMHelper.setText(this.getElement('saveButton'), buttonText)
   }
 
   // キーボードショートカット処理
@@ -408,30 +361,36 @@ export class TaskForm {
   // アクセシビリティの設定
   updateAriaLabels() {
     // フォームのARIAラベル
-    if (this.elements.form) {
-      this.elements.form.setAttribute('aria-labelledby', 'modal-title')
+    const form = this.getElement('form')
+    if (form) {
+      DOMHelper.setAttribute(form, 'aria-labelledby', 'modal-title')
     }
     
     // 必須フィールドのマーク
-    if (this.elements.textInput) {
-      this.elements.textInput.setAttribute('aria-required', 'true')
+    const textInput = this.getElement('textInput')
+    if (textInput) {
+      DOMHelper.setAttribute(textInput, 'aria-required', 'true')
     }
     
     // エラーとの関連付け
-    if (this.elements.textInput && this.elements.textError) {
-      this.elements.textInput.setAttribute('aria-describedby', this.elements.textError.id)
+    const textError = this.getElement('textError')
+    if (textInput && textError) {
+      DOMHelper.setAttribute(textInput, 'aria-describedby', textError.id)
     }
     
-    if (this.elements.dueDateInput && this.elements.dueDateError) {
-      this.elements.dueDateInput.setAttribute('aria-describedby', this.elements.dueDateError.id)
+    const dueDateInput = this.getElement('dueDateInput')
+    const dueDateError = this.getElement('dueDateError')
+    if (dueDateInput && dueDateError) {
+      DOMHelper.setAttribute(dueDateInput, 'aria-describedby', dueDateError.id)
     }
   }
 
   // フォーカス管理
   focusFirstField() {
-    if (this.elements.textInput) {
-      this.elements.textInput.focus()
-      this.elements.textInput.select()
+    const textInput = this.getElement('textInput')
+    if (textInput) {
+      DOMHelper.focus(textInput)
+      DOMHelper.selectText(textInput)
     }
   }
 
@@ -454,11 +413,11 @@ export class TaskForm {
   destroy() {
     this.reset()
     
-    if (this.container) {
-      this.container.style.display = 'none'
-    }
+    DOMHelper.toggleDisplay(this.container, false)
     
-    this.elements = {}
+    // BaseComponentのdestroyを呼び出し
+    super.destroy()
+    
     this.validationErrors = {}
     this.currentTask = null
   }
@@ -471,7 +430,7 @@ export class TaskForm {
       validationErrors: { ...this.validationErrors },
       formData: this.getFormData(),
       isValid: this.isValid(),
-      elementsFound: Object.keys(this.elements).filter(key => this.elements[key] !== null)
+      elementsFound: Array.from(this.elements.keys()).filter(key => this.getElement(key) !== null)
     }
   }
 }

@@ -1212,6 +1212,113 @@ select:focus-visible,
 textarea:focus-visible {
   outline: 2px solid var(--color-primary);
   outline-offset: -2px;
+  box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.15);
+}
+
+/* スキップリンク（アクセシビリティ改善） */
+.skip-link {
+  position: absolute;
+  top: -40px;
+  left: 6px;
+  background: var(--color-primary);
+  color: white;
+  padding: 8px;
+  text-decoration: none;
+  border-radius: 4px;
+  z-index: 9999;
+  font-weight: 600;
+  transition: top 0.2s ease;
+}
+
+.skip-link:focus {
+  top: 6px;
+}
+
+/* タッチデバイス向け最適化 */
+@media (hover: none) and (pointer: coarse) {
+  .btn,
+  .filter-button,
+  .task-action-button {
+    min-height: 44px; /* タッチターゲットサイズ最小値 */
+    min-width: 44px;
+    padding: var(--spacing-sm) var(--spacing-base);
+  }
+  
+  .task-checkbox {
+    width: 24px;
+    height: 24px;
+  }
+  
+  .task-item {
+    padding: var(--spacing-base);
+    margin-bottom: var(--spacing-sm);
+  }
+}
+
+/* 縦向きスマートフォン向け */
+@media (max-width: 480px) and (orientation: portrait) {
+  .modal-content {
+    width: 95vw;
+    max-height: 90vh;
+    overflow-y: auto;
+  }
+  
+  .task-actions {
+    flex-direction: column;
+    gap: var(--spacing-xs);
+    width: 100%;
+  }
+  
+  .task-action-button {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+/* 大型ディスプレイ向け最適化 */
+@media (min-width: 1440px) {
+  .app {
+    max-width: 1400px;
+    margin: 0 auto;
+  }
+  
+  .main-content {
+    grid-template-columns: 320px 1fr;
+    gap: var(--spacing-xl);
+  }
+  
+  .task-list-content {
+    max-height: 70vh;
+  }
+}
+
+/* 高コントラスト改善 */
+@media (prefers-contrast: high) {
+  .task-item {
+    border: 2px solid var(--color-border-primary);
+    background: var(--color-bg-primary);
+  }
+  
+  .btn {
+    border-width: 2px;
+    font-weight: 700;
+  }
+  
+  .notification {
+    border-width: 2px;
+  }
+  
+  .task-priority[data-priority="high"] {
+    border-left: 4px solid var(--color-priority-high);
+  }
+  
+  .task-priority[data-priority="medium"] {
+    border-left: 4px solid var(--color-priority-medium);
+  }
+  
+  .task-priority[data-priority="low"] {
+    border-left: 4px solid var(--color-priority-low);
+  }
 }
 
 /* 印刷スタイル */

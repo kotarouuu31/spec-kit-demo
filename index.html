@@ -25,7 +25,10 @@
     <link rel="stylesheet" href="/src/styles/main.css">
 </head>
 <body>
-    <div id="app" class="app">
+    <!-- スキップリンク（アクセシビリティ改善） -->
+    <a href="#main-content" class="skip-link">メインコンテンツにスキップ</a>
+    
+    <div id="app" class="app" role="application" aria-label="個人用 ToDo アプリ">
         <!-- アプリケーションヘッダー -->
         <header id="app-header" class="app-header">
             <div class="header-content">
@@ -79,9 +82,9 @@
         </header>
 
         <!-- メインコンテンツ -->
-        <main class="main-content">
+        <main id="main-content" class="main-content" role="main" aria-label="タスク管理メインエリア">
             <!-- フィルターコントロール -->
-            <section id="filter-controls" class="filter-controls">
+            <section id="filter-controls" class="filter-controls" role="complementary" aria-label="フィルター設定">
                 <div class="filter-section">
                     <h3 class="filter-title">表示フィルター</h3>
                     <div class="filter-buttons">
@@ -136,7 +139,7 @@
             </section>
 
             <!-- タスクリスト -->
-            <section id="task-list" class="task-list">
+            <section id="task-list" class="task-list" role="region" aria-label="タスクリスト">
                 <div class="task-list-header">
                     <h2 class="task-list-title">タスク一覧</h2>
                     <div class="task-list-actions">

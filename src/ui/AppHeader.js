@@ -1,18 +1,17 @@
 // AppHeaderクラス - アプリケーションヘッダー管理
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { BaseComponent, DOMHelper } from '../utils/dom-helpers.js'
+import { logger } from '../utils/logger.js'
 
-export class AppHeader {
+export class AppHeader extends BaseComponent {
   constructor(container, database) {
-    if (!container || !(container instanceof HTMLElement)) {
-      throw new Error('Container must be a valid HTML element')
-    }
+    super(container)
     
     if (!database) {
       throw new Error('Database must be provided')
     }
 
-    this.container = container
     this.database = database
     this.isCompact = false
     this.stats = {
@@ -30,46 +29,40 @@ export class AppHeader {
 
   // 初期化
   init() {
-    this.container.className = 'app-header'
+    DOMHelper.addClass(this.container, 'app-header')
     this.cacheElements()
     this.setupEventListeners()
   }
 
   // DOM要素をキャッシュ
   cacheElements() {
-    this.elements = {
-      currentDate: this.container.querySelector('#current-date, .current-date'),
-      totalCount: this.container.querySelector('[data-stat="total"], .total-count'),
-      activeCount: this.container.querySelector('[data-stat="active"], .active-count'),
-      completedCount: this.container.querySelector('[data-stat="completed"], .completed-count'),
-      overdueWarning: this.container.querySelector('[data-stat="overdue"], .overdue-warning'),
-      overdueCount: this.container.querySelector('.overdue-count'),
-      progressBar: this.container.querySelector('[data-element="progress"], .progress-bar'),
-      progressFill: this.container.querySelector('[data-element="progress-fill"], .progress-fill'),
-      progressPercentage: this.container.querySelector('.progress-percentage'),
-      addTaskButton: this.container.querySelector('[data-action="add-task"], .add-task-button')
-    }
+    this.cacheElement('currentDate', '#current-date, .current-date')
+    this.cacheElement('totalCount', '[data-stat="total"], .total-count')
+    this.cacheElement('activeCount', '[data-stat="active"], .active-count')
+    this.cacheElement('completedCount', '[data-stat="completed"], .completed-count')
+    this.cacheElement('overdueWarning', '[data-stat="overdue"], .overdue-warning')
+    this.cacheElement('overdueCount', '.overdue-count')
+    this.cacheElement('progressBar', '[data-element="progress"], .progress-bar')
+    this.cacheElement('progressFill', '[data-element="progress-fill"], .progress-fill')
+    this.cacheElement('progressPercentage', '.progress-percentage')
+    this.cacheElement('addTaskButton', '[data-action="add-task"], .add-task-button')
   }
 
   // イベントリスナーを設定
   setupEventListeners() {
     // 新規タスク追加ボタン
-    if (this.elements.addTaskButton) {
-      this.elements.addTaskButton.addEventListener('click', (e) => {
-        e.preventDefault()
-        this.handleAddTaskClick()
-      })
-    }
+    this.addEventListenerSafe('addTaskButton', 'click', (e) => {
+      e.preventDefault()
+      this.handleAddTaskClick()
+    })
 
     // キーボードアクセシビリティ
-    if (this.elements.addTaskButton) {
-      this.elements.addTaskButton.addEventListener('keydown', (e) => {
-        if (e.key === 'Enter' || e.key === ' ') {
-          e.preventDefault()
-          this.handleAddTaskClick()
-        }
-      })
-    }
+    this.addEventListenerSafe('addTaskButton', 'keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        this.handleAddTaskClick()
+      }
+    })
   }
 
   // レンダリング
@@ -90,7 +83,7 @@ export class AppHeader {
         stats: { ...this.stats }
       })
     } catch (error) {
-      console.error('統計更新エラー:', error)
+      logger.error('統計更新エラー', { error: error.message })
       // エラー時は前回の値を維持
     }
   }
@@ -98,17 +91,19 @@ export class AppHeader {
   // 統計情報をDOM に反映
   renderStats() {
     // 基本統計
-    this.updateElement(this.elements.totalCount, this.stats.total)
-    this.updateElement(this.elements.activeCount, this.stats.active)
-    this.updateElement(this.elements.completedCount, this.stats.completed)
+    this.updateElement('totalCount', this.stats.total)
+    this.updateElement('activeCount', this.stats.active)
+    this.updateElement('completedCount', this.stats.completed)
 
     // 期限切れ警告
-    if (this.elements.overdueWarning && this.elements.overdueCount) {
-      if (this.stats.overdue > 0) {
-        this.elements.overdueWarning.style.display = 'flex'
-        this.updateElement(this.elements.overdueCount, this.stats.overdue)
-      } else {
-        this.elements.overdueWarning.style.display = 'none'
+    const overdueWarning = this.getElement('overdueWarning')
+    const overdueCount = this.getElement('overdueCount')
+    
+    if (overdueWarning && overdueCount) {
+      const hasOverdue = this.stats.overdue > 0
+      DOMHelper.toggleDisplay(overdueWarning, hasOverdue, 'flex')
+      if (hasOverdue) {
+        this.updateElement('overdueCount', this.stats.overdue)
       }
     }
   }
@@ -118,14 +113,16 @@ export class AppHeader {
     const completionRate = this.getCompletionRate()
     
     // 進捗バー
-    if (this.elements.progressFill) {
-      this.elements.progressFill.style.width = `${completionRate}%`
-      this.elements.progressFill.setAttribute('data-progress', `${completionRate}%`)
+    const progressFill = this.getElement('progressFill')
+    if (progressFill) {
+      progressFill.style.width = `${completionRate}%`
+      DOMHelper.setAttribute(progressFill, 'data-progress', `${completionRate}%`)
     }
 
     // 進捗パーセンテージ
-    if (this.elements.progressPercentage) {
-      this.elements.progressPercentage.textContent = `${completionRate}%`
+    const progressPercentage = this.getElement('progressPercentage')
+    if (progressPercentage) {
+      DOMHelper.setText(progressPercentage, `${completionRate}%`)
     }
   }
 
@@ -140,10 +137,8 @@ export class AppHeader {
 
   // 日付を更新
   updateDate() {
-    if (this.elements.currentDate) {
-      const dateString = this.getCurrentDateString()
-      this.elements.currentDate.textContent = dateString
-    }
+    const dateString = this.getCurrentDateString()
+    DOMHelper.setText(this.getElement('currentDate'), dateString)
   }
 
   // 現在日付の文字列を取得
@@ -163,11 +158,11 @@ export class AppHeader {
     this.isCompact = enabled
     
     if (enabled) {
-      this.container.setAttribute('data-compact', 'true')
-      this.container.classList.add('compact')
+      DOMHelper.setAttribute(this.container, 'data-compact', 'true')
+      DOMHelper.addClass(this.container, 'compact')
     } else {
-      this.container.removeAttribute('data-compact')
-      this.container.classList.remove('compact')
+      DOMHelper.removeAttribute(this.container, 'data-compact')
+      DOMHelper.removeClass(this.container, 'compact')
     }
     
     this.updateCompactLayout()
@@ -193,9 +188,9 @@ export class AppHeader {
   }
 
   // 要素のテキストを更新するヘルパー
-  updateElement(element, value) {
-    if (element && value !== undefined && value !== null) {
-      element.textContent = value.toString()
+  updateElement(elementKey, value) {
+    if (value !== undefined && value !== null) {
+      DOMHelper.setText(this.getElement(elementKey), value.toString())
     }
   }
 
@@ -250,11 +245,12 @@ export class AppHeader {
     this.updateStats()
     
     // 視覚的フィードバック
-    if (this.elements.progressBar) {
-      this.elements.progressBar.style.opacity = '0.5'
+    const progressBar = this.getElement('progressBar')
+    if (progressBar) {
+      progressBar.style.opacity = '0.5'
       setTimeout(() => {
-        if (this.elements.progressBar) {
-          this.elements.progressBar.style.opacity = '1'
+        if (progressBar) {
+          progressBar.style.opacity = '1'
         }
       }, 200)
     }
@@ -264,16 +260,18 @@ export class AppHeader {
   updateAriaLabels() {
     const completionRate = this.getCompletionRate()
     
-    if (this.elements.progressBar) {
-      this.elements.progressBar.setAttribute('role', 'progressbar')
-      this.elements.progressBar.setAttribute('aria-valuenow', completionRate)
-      this.elements.progressBar.setAttribute('aria-valuemin', '0')
-      this.elements.progressBar.setAttribute('aria-valuemax', '100')
-      this.elements.progressBar.setAttribute('aria-label', `タスク完了率: ${completionRate}%`)
+    const progressBar = this.getElement('progressBar')
+    if (progressBar) {
+      DOMHelper.setAttribute(progressBar, 'role', 'progressbar')
+      DOMHelper.setAttribute(progressBar, 'aria-valuenow', completionRate)
+      DOMHelper.setAttribute(progressBar, 'aria-valuemin', '0')
+      DOMHelper.setAttribute(progressBar, 'aria-valuemax', '100')
+      DOMHelper.setAttribute(progressBar, 'aria-label', `タスク完了率: ${completionRate}%`)
     }
 
-    if (this.elements.addTaskButton) {
-      this.elements.addTaskButton.setAttribute('aria-label', '新しいタスクを追加')
+    const addTaskButton = this.getElement('addTaskButton')
+    if (addTaskButton) {
+      DOMHelper.setAttribute(addTaskButton, 'aria-label', '新しいタスクを追加')
     }
   }
 
@@ -291,13 +289,9 @@ export class AppHeader {
   destroy() {
     this.stopStatsMonitoring()
     
-    // イベントリスナーの削除は不要（要素と一緒に削除される）
+    // BaseComponentのdestroyを呼び出し
+    super.destroy()
     
-    if (this.container) {
-      this.container.innerHTML = ''
-    }
-    
-    this.elements = {}
     this.stats = {}
   }
 
@@ -307,7 +301,7 @@ export class AppHeader {
       isCompact: this.isCompact,
       stats: this.stats,
       completionRate: this.getCompletionRate(),
-      elementsFound: Object.keys(this.elements).filter(key => this.elements[key] !== null),
+      elementsFound: Array.from(this.elements.keys()).filter(key => this.getElement(key) !== null),
       currentDate: this.getCurrentDateString()
     }
   }

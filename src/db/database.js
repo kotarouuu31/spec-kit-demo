@@ -94,13 +94,28 @@ export class TaskDatabase {
         )
       `)
 
-      // インデックスの作成
+      // 基本インデックスの作成
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
         CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
         CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
         CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
       `)
+
+      // パフォーマンス最適化のための複合インデックス
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_tasks_completed_priority ON tasks(completed, priority);
+        CREATE INDEX IF NOT EXISTS idx_tasks_completed_due_date ON tasks(completed, due_date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_priority_created_at ON tasks(priority, created_at);
+      `)
+
+      // 統計情報取得用の複合インデックス
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_tasks_stats ON tasks(completed, priority, due_date);
+      `)
+
+      // データベース統計の更新
+      this.db.exec('ANALYZE')
 
       // トリガーは使用せず、アプリケーション側でupdated_atを管理
 
@@ -420,45 +435,31 @@ export class TaskDatabase {
     }
 
     try {
-      // 基本統計
-      const basicStatsStmt = this.db.prepare(`
+      // 最適化された1クエリによる統計取得（複合インデックス idx_tasks_stats を活用）
+      const today = new Date().toISOString().split('T')[0]
+      
+      const statsStmt = this.db.prepare(`
         SELECT 
           COUNT(*) as total,
           SUM(CASE WHEN completed = 0 THEN 1 ELSE 0 END) as active,
-          SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed
-        FROM tasks
-      `)
-      const basicStats = basicStatsStmt.get()
-
-      // 優先度別統計
-      const priorityStatsStmt = this.db.prepare(`
-        SELECT 
+          SUM(CASE WHEN completed = 1 THEN 1 ELSE 0 END) as completed,
+          SUM(CASE WHEN completed = 0 AND due_date < ? AND due_date IS NOT NULL THEN 1 ELSE 0 END) as overdue,
           SUM(CASE WHEN priority = 'high' THEN 1 ELSE 0 END) as high_priority,
           SUM(CASE WHEN priority = 'medium' THEN 1 ELSE 0 END) as medium_priority,
           SUM(CASE WHEN priority = 'low' THEN 1 ELSE 0 END) as low_priority
         FROM tasks
       `)
-      const priorityStats = priorityStatsStmt.get()
-
-      // 期限切れタスク統計
-      const today = new Date().toISOString().split('T')[0]
-      const overdueStmt = this.db.prepare(`
-        SELECT COUNT(*) as overdue
-        FROM tasks 
-        WHERE due_date IS NOT NULL 
-        AND due_date < ? 
-        AND completed = 0
-      `)
-      const overdueStats = overdueStmt.get(today)
+      
+      const stats = statsStmt.get(today)
 
       return {
-        total: basicStats.total,
-        active: basicStats.active,
-        completed: basicStats.completed,
-        overdue: overdueStats.overdue,
-        high_priority: priorityStats.high_priority,
-        medium_priority: priorityStats.medium_priority,
-        low_priority: priorityStats.low_priority
+        total: stats.total || 0,
+        active: stats.active || 0,
+        completed: stats.completed || 0,
+        overdue: stats.overdue || 0,
+        high_priority: stats.high_priority || 0,
+        medium_priority: stats.medium_priority || 0,
+        low_priority: stats.low_priority || 0
       }
     } catch (error) {
       this._handleDbError(error, 'getTaskStats')

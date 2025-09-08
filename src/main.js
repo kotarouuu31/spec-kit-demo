@@ -5,6 +5,7 @@ import { TaskList } from './ui/TaskList.js'
 import { TaskForm } from './ui/TaskForm.js'
 import { FilterControls } from './ui/FilterControls.js'
 import { NotificationManager } from './ui/NotificationManager.js'
+import { logger, ErrorHandler } from './utils/logger.js'
 
 // グローバル状態管理
 class TodoApp {
@@ -17,11 +18,22 @@ class TodoApp {
       sortBy: 'created_at',
       sortOrder: 'desc'
     }
+    
+    // ログシステム初期化
+    this.logger = logger
+    this.errorHandler = null // NotificationManager初期化後に設定
+    
+    this.logger.info('TodoAppインスタンスが作成されました')
   }
 
   // アプリケーション初期化
   async init() {
+    const initTimer = 'app-initialization'
+    this.logger.startTimer(initTimer)
+    
     try {
+      this.logger.info('アプリケーションの初期化を開始します')
+      
       // ローディング表示
       this.showLoading(true)
 
@@ -30,6 +42,9 @@ class TodoApp {
 
       // UIコンポーネント初期化
       this.initializeComponents()
+      
+      // エラーハンドラー設定（NotificationManager初期化後）
+      this.errorHandler = new ErrorHandler(this.logger, this.components.notifications)
 
       // イベントリスナー設定
       this.setupEventListeners()
@@ -40,25 +55,47 @@ class TodoApp {
       // ローディング非表示
       this.showLoading(false)
 
-      console.log('ToDoアプリが正常に初期化されました')
+      this.logger.endTimer(initTimer)
+      this.logger.info('ToDoアプリが正常に初期化されました')
+      
+      // システム情報をログに記録
+      this.logger.logSystemInfo()
+      
     } catch (error) {
-      console.error('アプリケーションの初期化中にエラーが発生しました:', error)
+      this.logger.error('アプリケーションの初期化中にエラーが発生しました', {
+        error: error.message,
+        stack: error.stack
+      })
+      
       this.showLoading(false)
       this.components.notifications?.showError(
         'アプリケーションの初期化に失敗しました。ページを再読み込みしてください。'
       )
+      
+      this.logger.endTimer(initTimer)
     }
   }
 
   // データベース初期化
   async initializeDatabase() {
     const dbPath = 'todo-tasks.db'
+    this.logger.info('データベースの初期化を開始します', { dbPath })
+    
     this.database = new TaskDatabase(dbPath)
     
     try {
+      this.logger.logDbOperation('connect', 'database', { path: dbPath })
       this.database.connect()
+      
+      this.logger.logDbOperation('initializeSchema', 'tasks')
       this.database.initializeSchema()
+      
+      this.logger.info('データベースが正常に初期化されました')
     } catch (error) {
+      this.logger.error('データベースの初期化に失敗しました', {
+        error: error.message,
+        dbPath
+      })
       throw new Error(`データベースの初期化に失敗しました: ${error.message}`)
     }
   }
@@ -95,56 +132,89 @@ class TodoApp {
     this.components.taskList.render([])
   }
 
-  // イベントリスナー設定
+  // イベントリスナー設定（統合・エラーハンドリング強化）
   setupEventListeners() {
+    // 中央集権的なイベントハンドラーでエラーキャッチ
+    const safeEventHandler = (handler) => {
+      return (event) => {
+        try {
+          handler(event)
+        } catch (error) {
+          console.error('イベントハンドリング中にエラーが発生:', error)
+          this.components.notifications?.showError('操作中にエラーが発生しました')
+        }
+      }
+    }
+
     // ヘッダーイベント
-    this.components.header.container.addEventListener('add-task-requested', () => {
+    this.components.header.container.addEventListener('add-task-requested', safeEventHandler(() => {
       this.openTaskForm('create')
-    })
+    }))
+
+    this.components.header.container.addEventListener('stats-updated', safeEventHandler((event) => {
+      // 統計更新の通知をコンソールに記録
+      console.log('統計更新:', event.detail.stats)
+    }))
 
     // フォームイベント
-    this.components.form.container.addEventListener('task-created', (event) => {
+    this.components.form.container.addEventListener('task-created', safeEventHandler((event) => {
       this.handleTaskCreated(event.detail.task)
-    })
+    }))
 
-    this.components.form.container.addEventListener('task-updated', (event) => {
+    this.components.form.container.addEventListener('task-updated', safeEventHandler((event) => {
       this.handleTaskUpdated(event.detail.task)
-    })
+    }))
 
-    this.components.form.container.addEventListener('form-cancel', () => {
+    this.components.form.container.addEventListener('form-cancel', safeEventHandler(() => {
       this.closeTaskForm()
-    })
+    }))
 
     // フィルターイベント
-    this.components.filters.container.addEventListener('filters-changed', (event) => {
+    this.components.filters.container.addEventListener('filters-changed', safeEventHandler((event) => {
       this.handleFiltersChanged(event.detail.filters)
-    })
+    }))
 
-    this.components.filters.container.addEventListener('filters-reset', () => {
+    this.components.filters.container.addEventListener('filters-reset', safeEventHandler(() => {
       this.handleFiltersReset()
-    })
+    }))
 
     // タスクリストイベント
-    this.components.taskList.container.addEventListener('task-toggle', (event) => {
+    this.components.taskList.container.addEventListener('task-toggle', safeEventHandler((event) => {
       this.handleTaskToggle(event.detail.taskId)
-    })
+    }))
 
-    this.components.taskList.container.addEventListener('task-edit', (event) => {
+    this.components.taskList.container.addEventListener('task-edit', safeEventHandler((event) => {
       this.openTaskForm('edit', event.detail.task)
-    })
+    }))
 
-    this.components.taskList.container.addEventListener('task-delete', (event) => {
+    this.components.taskList.container.addEventListener('task-delete', safeEventHandler((event) => {
       this.handleTaskDelete(event.detail.taskId, event.detail.task)
-    })
+    }))
+
+    // 通知イベント
+    this.components.notifications.container.addEventListener('notification-action', safeEventHandler((event) => {
+      console.log('通知アクション実行:', event.detail)
+    }))
 
     // キーボードショートカット
-    document.addEventListener('keydown', (event) => {
+    document.addEventListener('keydown', safeEventHandler((event) => {
       this.handleKeyboardShortcuts(event)
-    })
+    }))
 
     // ページ離脱前の処理
     window.addEventListener('beforeunload', () => {
       this.cleanup()
+    })
+
+    // アプリケーション全体のエラーハンドリング
+    window.addEventListener('error', (event) => {
+      console.error('グローバルエラー:', event.error)
+      this.components.notifications?.showError('予期しないエラーが発生しました')
+    })
+
+    window.addEventListener('unhandledrejection', (event) => {
+      console.error('未処理のPromise拒否:', event.reason)
+      this.components.notifications?.showError('非同期処理でエラーが発生しました')
     })
   }
 
@@ -229,6 +299,12 @@ class TodoApp {
   // タスク作成処理
   async handleTaskCreated(task) {
     try {
+      this.logger.logUserAction('task-created', 'TaskForm', { 
+        taskId: task.id, 
+        text: task.text,
+        priority: task.priority 
+      })
+      
       this.closeTaskForm()
       await this.refreshTaskList()
       this.updateHeaderStats()
@@ -237,15 +313,22 @@ class TodoApp {
         `タスク「${task.text}」を作成しました`,
         { duration: 3000 }
       )
+      
+      this.logger.info('新規タスクが正常に作成されました', { taskId: task.id })
     } catch (error) {
-      console.error('タスク作成後の処理中にエラーが発生しました:', error)
-      this.components.notifications.showError('タスクの作成に失敗しました')
+      this.errorHandler.handleError(error, 'task-creation-post-process')
     }
   }
 
   // タスク更新処理
   async handleTaskUpdated(task) {
     try {
+      this.logger.logUserAction('task-updated', 'TaskForm', { 
+        taskId: task.id, 
+        text: task.text,
+        priority: task.priority 
+      })
+      
       this.closeTaskForm()
       await this.refreshTaskList()
       this.updateHeaderStats()
@@ -254,16 +337,24 @@ class TodoApp {
         `タスク「${task.text}」を更新しました`,
         { duration: 3000 }
       )
+      
+      this.logger.info('タスクが正常に更新されました', { taskId: task.id })
     } catch (error) {
-      console.error('タスク更新後の処理中にエラーが発生しました:', error)
-      this.components.notifications.showError('タスクの更新に失敗しました')
+      this.errorHandler.handleError(error, 'task-update-post-process')
     }
   }
 
   // タスク完了切り替え処理
   async handleTaskToggle(taskId) {
     try {
+      this.logger.logDbOperation('toggleTaskCompletion', 'tasks', { taskId })
       const updatedTask = this.database.toggleTaskCompletion(taskId)
+      
+      this.logger.logUserAction('task-toggled', 'TaskList', { 
+        taskId, 
+        completed: updatedTask.completed 
+      })
+      
       await this.refreshTaskList()
       this.updateHeaderStats()
       
@@ -272,9 +363,13 @@ class TodoApp {
         `タスク「${updatedTask.text}」を${statusText}`,
         { duration: 2000 }
       )
+      
+      this.logger.info('タスクの完了状態が正常に変更されました', { 
+        taskId, 
+        completed: updatedTask.completed 
+      })
     } catch (error) {
-      console.error('タスク切り替え中にエラーが発生しました:', error)
-      this.components.notifications.showError('タスクの状態変更に失敗しました')
+      this.errorHandler.handleError(error, 'task-toggle-process')
     }
   }
 
