@@ -196,6 +196,7 @@ export class AppHeader extends BaseComponent {
 
   // 新規タスクボタンクリックハンドラー
   handleAddTaskClick() {
+    logger.debug('新規タスクボタンがクリックされました')
     this.dispatchEvent('add-task-requested', {
       source: 'header'
     })

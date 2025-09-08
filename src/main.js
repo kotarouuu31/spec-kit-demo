@@ -147,7 +147,8 @@ class TodoApp {
     }
 
     // ヘッダーイベント
-    this.components.header.container.addEventListener('add-task-requested', safeEventHandler(() => {
+    this.components.header.container.addEventListener('add-task-requested', safeEventHandler((event) => {
+      this.logger.debug('新規タスク追加リクエスト受信', event.detail)
       this.openTaskForm('create')
     }))
 
@@ -272,16 +273,20 @@ class TodoApp {
   // タスクフォームを開く
   openTaskForm(mode, task = null) {
     try {
+      this.logger.debug('タスクフォームを開いています', { mode, taskId: task?.id })
+      
       this.components.form.render(mode, task)
       this.components.form.container.style.display = 'flex'
       
+      // アクセシビリティの改善
+      this.components.form.updateAriaLabels()
+      
       // フォーカスを設定
-      const textInput = this.components.form.container.querySelector('[name="text"]')
-      if (textInput) {
-        setTimeout(() => textInput.focus(), 100)
-      }
+      this.components.form.focusFirstField()
+      
+      this.logger.debug('タスクフォームの表示完了')
     } catch (error) {
-      console.error('フォームの表示中にエラーが発生しました:', error)
+      this.logger.error('フォーム表示エラー', { error: error.message, mode, task })
       this.components.notifications.showError('フォームの表示に失敗しました')
     }
   }
@@ -289,10 +294,14 @@ class TodoApp {
   // タスクフォームを閉じる
   closeTaskForm() {
     try {
+      this.logger.debug('タスクフォームを閉じています')
+      
       this.components.form.container.style.display = 'none'
       this.components.form.reset()
+      
+      this.logger.debug('タスクフォームの非表示完了')
     } catch (error) {
-      console.error('フォームの非表示中にエラーが発生しました:', error)
+      this.logger.error('フォーム非表示エラー', { error: error.message })
     }
   }
 
