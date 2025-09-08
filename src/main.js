@@ -1,5 +1,5 @@
 // 個人用ToDoアプリ - メインエントリーポイント
-import { TaskDatabase } from './db/database.js'
+import { TaskDatabase } from './db/browser-database.js'
 import { AppHeader } from './ui/AppHeader.js'
 import { TaskList } from './ui/TaskList.js'
 import { TaskForm } from './ui/TaskForm.js'
@@ -78,23 +78,20 @@ class TodoApp {
 
   // データベース初期化
   async initializeDatabase() {
-    const dbPath = 'todo-tasks.db'
-    this.logger.info('データベースの初期化を開始します', { dbPath })
+    const dbName = 'todo-app'
+    this.logger.info('データベースの初期化を開始します', { dbName })
     
-    this.database = new TaskDatabase(dbPath)
+    this.database = new TaskDatabase(dbName)
     
     try {
-      this.logger.logDbOperation('connect', 'database', { path: dbPath })
-      this.database.connect()
-      
-      this.logger.logDbOperation('initializeSchema', 'tasks')
-      this.database.initializeSchema()
+      this.logger.logDbOperation('connect', 'database', { dbName })
+      await this.database.connect()
       
       this.logger.info('データベースが正常に初期化されました')
     } catch (error) {
       this.logger.error('データベースの初期化に失敗しました', {
         error: error.message,
-        dbPath
+        dbName
       })
       throw new Error(`データベースの初期化に失敗しました: ${error.message}`)
     }
