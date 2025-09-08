@@ -31,11 +31,11 @@ export class TaskForm extends BaseComponent {
   cacheElements() {
     // BaseComponentのcacheElementメソッドを使用
     this.cacheElement('modalTitle', '#modal-title, .modal-title')
-    this.cacheElement('form', '#task-form, .task-form', true)
+    this.cacheElement('form', '#task-form, .task-form')
     
     // フォームフィールド
-    this.cacheElement('textInput', '#task-text, [name="text"]', true)
-    this.cacheElement('prioritySelect', '#task-priority, [name="priority"]', true)
+    this.cacheElement('textInput', '#task-text, [name="text"]')
+    this.cacheElement('prioritySelect', '#task-priority, [name="priority"]')
     this.cacheElement('dueDateInput', '#task-due-date, [name="due_date"]')
     
     // エラー表示
@@ -43,7 +43,7 @@ export class TaskForm extends BaseComponent {
     this.cacheElement('dueDateError', '#task-due-date-error')
     
     // ボタン
-    this.cacheElement('saveButton', '[data-action="save"], .save-button', true)
+    this.cacheElement('saveButton', '[data-action="save"], .save-button')
     this.cacheElement('cancelButton', '[data-action="cancel"], .cancel-button')
     this.cacheElement('closeButton', '[data-action="close"], .modal-close')
     
