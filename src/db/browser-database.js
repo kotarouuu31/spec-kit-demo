@@ -64,6 +64,11 @@ export class TaskDatabase {
     console.log('データベース接続を切断しました')
   }
 
+  // データベースクローズ（disconnectのエイリアス）
+  close() {
+    this.disconnect()
+  }
+
   // データ保存
   _saveData() {
     try {
@@ -199,6 +204,33 @@ export class TaskDatabase {
 
     console.log('タスクを削除:', deletedTask)
     return deletedTask
+  }
+
+  // タスク完了状態の切り替え
+  toggleTaskCompletion(id) {
+    if (!this.connected) {
+      throw new DatabaseError('データベースが接続されていません', 'toggle')
+    }
+
+    const taskIndex = this.tasks.findIndex(t => t.id === parseInt(id))
+    if (taskIndex === -1) {
+      throw new NotFoundError(`ID ${id} のタスクが見つかりません`)
+    }
+
+    const task = this.tasks[taskIndex]
+    const newCompletedState = task.completed === 1 ? 0 : 1
+    
+    const updatedTask = {
+      ...task,
+      completed: newCompletedState,
+      updated_at: new Date().toISOString()
+    }
+
+    this.tasks[taskIndex] = updatedTask
+    this._saveData()
+
+    console.log('タスク完了状態を切り替え:', updatedTask)
+    return updatedTask
   }
 
   // 統計情報取得
