@@ -4,6 +4,7 @@ import { AppHeader } from './ui/AppHeader.js'
 import { TaskList } from './ui/TaskList.js'
 import { TaskForm } from './ui/TaskForm.js'
 import { FilterControls } from './ui/FilterControls.js'
+import { CategoryManager } from './ui/CategoryManager.js'
 import { NotificationManager } from './ui/NotificationManager.js'
 import { logger, ErrorHandler } from './utils/logger.js'
 
@@ -15,6 +16,7 @@ class TodoApp {
     this.currentFilter = {
       show: 'all',
       priority: [],
+      category: null,
       sortBy: 'created_at',
       sortOrder: 'desc'
     }
@@ -104,6 +106,7 @@ class TodoApp {
       form: document.getElementById('task-form-modal'),
       filters: document.getElementById('filter-controls'),
       taskList: document.getElementById('task-list'),
+      categoryManager: document.getElementById('category-manager-container'),
       notifications: document.getElementById('notifications')
     }
 
@@ -120,8 +123,12 @@ class TodoApp {
       form: new TaskForm(containers.form, this.database),
       filters: new FilterControls(containers.filters),
       taskList: new TaskList(containers.taskList, this.database),
+      categoryManager: new CategoryManager(this.database),
       notifications: new NotificationManager(containers.notifications)
     }
+
+    // CategoryManagerをコンテナに追加
+    containers.categoryManager.appendChild(this.components.categoryManager.element)
 
     // 初期レンダリング
     this.components.header.render()
@@ -147,6 +154,11 @@ class TodoApp {
     this.components.header.container.addEventListener('add-task-requested', safeEventHandler((event) => {
       this.logger.debug('新規タスク追加リクエスト受信', event.detail)
       this.openTaskForm('create')
+    }))
+
+    this.components.header.container.addEventListener('manage-categories-requested', safeEventHandler((event) => {
+      this.logger.debug('カテゴリ管理リクエスト受信', event.detail)
+      this.openCategoryManager()
     }))
 
     this.components.header.container.addEventListener('stats-updated', safeEventHandler((event) => {
@@ -299,6 +311,17 @@ class TodoApp {
       this.logger.debug('タスクフォームの非表示完了')
     } catch (error) {
       this.logger.error('フォーム非表示エラー', { error: error.message })
+    }
+  }
+
+  // カテゴリ管理を開く
+  openCategoryManager() {
+    try {
+      this.logger.debug('カテゴリ管理を開いています')
+      this.components.categoryManager.show()
+    } catch (error) {
+      this.logger.error('カテゴリ管理表示エラー', { error: error.message })
+      this.components.notifications.showError('カテゴリ管理の表示に失敗しました')
     }
   }
 

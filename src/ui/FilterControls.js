@@ -9,9 +9,12 @@ export class FilterControls {
     this.filters = {
       show: 'all', // all, active, completed
       priority: [], // ['high', 'medium', 'low']
+      category: null, // null (all), number (category id), 'uncategorized'
       sortBy: 'created_at', // created_at, updated_at, due_date, priority, text
       sortOrder: 'desc' // asc, desc
     }
+    
+    this.categories = [] // カテゴリリスト
 
     this.init()
   }
@@ -35,6 +38,11 @@ export class FilterControls {
       priorityHigh: this.container.querySelector('[data-priority="high"], .filter-high'),
       priorityMedium: this.container.querySelector('[data-priority="medium"], .filter-medium'),
       priorityLow: this.container.querySelector('[data-priority="low"], .filter-low'),
+      
+      // カテゴリフィルター
+      categoryFilters: this.container.querySelector('#category-filters, .category-filters'),
+      categoryAllButton: this.container.querySelector('[data-category="all"], .filter-all-categories'),
+      categoryUncategorizedButton: this.container.querySelector('[data-category="uncategorized"], .filter-uncategorized'),
       
       // ソート制御
       sortSelect: this.container.querySelector('[data-sort], .sort-select'),

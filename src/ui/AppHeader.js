@@ -46,6 +46,7 @@ export class AppHeader extends BaseComponent {
     this.cacheElement('progressFill', '[data-element="progress-fill"], .progress-fill')
     this.cacheElement('progressPercentage', '.progress-percentage')
     this.cacheElement('addTaskButton', '[data-action="add-task"], .add-task-button')
+    this.cacheElement('manageCategoriesButton', '[data-action="manage-categories"], .manage-categories-button')
   }
 
   // イベントリスナーを設定
@@ -56,11 +57,24 @@ export class AppHeader extends BaseComponent {
       this.handleAddTaskClick()
     })
 
+    // カテゴリ管理ボタン
+    this.addEventListenerSafe('manageCategoriesButton', 'click', (e) => {
+      e.preventDefault()
+      this.handleManageCategoriesClick()
+    })
+
     // キーボードアクセシビリティ
     this.addEventListenerSafe('addTaskButton', 'keydown', (e) => {
       if (e.key === 'Enter' || e.key === ' ') {
         e.preventDefault()
         this.handleAddTaskClick()
+      }
+    })
+
+    this.addEventListenerSafe('manageCategoriesButton', 'keydown', (e) => {
+      if (e.key === 'Enter' || e.key === ' ') {
+        e.preventDefault()
+        this.handleManageCategoriesClick()
       }
     })
   }
@@ -198,6 +212,14 @@ export class AppHeader extends BaseComponent {
   handleAddTaskClick() {
     logger.debug('新規タスクボタンがクリックされました')
     this.dispatchEvent('add-task-requested', {
+      source: 'header'
+    })
+  }
+
+  // カテゴリ管理ボタンクリックハンドラー
+  handleManageCategoriesClick() {
+    logger.debug('カテゴリ管理ボタンがクリックされました')
+    this.dispatchEvent('manage-categories-requested', {
       source: 'header'
     })
   }

@@ -73,6 +73,10 @@
                 </div>
                 
                 <div class="header-right">
+                    <button class="manage-categories-button" data-action="manage-categories" type="button" title="カテゴリ管理">
+                        <span class="button-icon">🏷️</span>
+                        <span class="button-text">カテゴリ</span>
+                    </button>
                     <button class="add-task-button" data-action="add-task" type="button">
                         <span class="button-icon">➕</span>
                         <span class="button-text">新規タスク</span>
@@ -115,6 +119,19 @@
                     </div>
                 </div>
                 
+                <div class="filter-section">
+                    <h3 class="filter-title">カテゴリフィルター</h3>
+                    <div class="filter-buttons category-filters" id="category-filters">
+                        <button class="filter-button filter-all-categories active" data-category="all">
+                            全て
+                        </button>
+                        <button class="filter-button filter-uncategorized" data-category="uncategorized">
+                            未分類
+                        </button>
+                        <!-- 動的にカテゴリボタンが追加される -->
+                    </div>
+                </div>
+
                 <div class="filter-section">
                     <h3 class="filter-title">ソート</h3>
                     <div class="sort-controls">
@@ -198,6 +215,20 @@
                     </div>
                     
                     <div class="form-group">
+                        <label for="task-category" class="form-label">カテゴリ</label>
+                        <select
+                            id="task-category"
+                            name="category_id"
+                            class="form-input"
+                            aria-describedby="task-category-error"
+                        >
+                            <option value="">未分類</option>
+                            <!-- カテゴリオプションは動的に追加される -->
+                        </select>
+                        <div class="form-error" id="task-category-error"></div>
+                    </div>
+
+                    <div class="form-group">
                         <label for="task-due-date" class="form-label">期日</label>
                         <input
                             type="date"
@@ -219,6 +250,11 @@
                     </div>
                 </form>
             </div>
+        </div>
+
+        <!-- カテゴリ管理モーダル -->
+        <div id="category-manager-container">
+            <!-- CategoryManagerコンポーネントがここに追加される -->
         </div>
 
         <!-- 通知エリア -->

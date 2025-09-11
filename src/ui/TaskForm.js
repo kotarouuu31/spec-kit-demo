@@ -36,10 +36,12 @@ export class TaskForm extends BaseComponent {
     // フォームフィールド
     this.cacheElement('textInput', '#task-text, [name="text"]')
     this.cacheElement('prioritySelect', '#task-priority, [name="priority"]')
+    this.cacheElement('categorySelect', '#task-category, [name="category_id"]')
     this.cacheElement('dueDateInput', '#task-due-date, [name="due_date"]')
     
     // エラー表示
     this.cacheElement('textError', '#task-text-error')
+    this.cacheElement('categoryError', '#task-category-error')
     this.cacheElement('dueDateError', '#task-due-date-error')
     
     // ボタン
@@ -117,18 +119,6 @@ export class TaskForm extends BaseComponent {
     })
   }
 
-  // レンダリング
-  render(mode, task = null) {
-    this.validateRenderParams(mode, task)
-    
-    this.mode = mode
-    this.currentTask = task ? { ...task } : null
-    
-    this.updateModalTitle()
-    this.setFormData(task || {})
-    this.clearValidationErrors()
-    this.updateFormState()
-  }
 
   // レンダリングパラメータの検証
   validateRenderParams(mode, task) {
@@ -151,6 +141,7 @@ export class TaskForm extends BaseComponent {
   setFormData(taskData) {
     DOMHelper.setValue(this.getElement('textInput'), taskData.text || '')
     DOMHelper.setValue(this.getElement('prioritySelect'), taskData.priority || 'medium')
+    DOMHelper.setValue(this.getElement('categorySelect'), taskData.category_id || '')
     DOMHelper.setValue(this.getElement('dueDateInput'), taskData.due_date || '')
   }
 
@@ -158,17 +149,22 @@ export class TaskForm extends BaseComponent {
   getFormData() {
     const textInput = this.getElement('textInput')
     const prioritySelect = this.getElement('prioritySelect')
+    const categorySelect = this.getElement('categorySelect')
     const dueDateInput = this.getElement('dueDateInput')
     
     const formData = {
       text: textInput?.value?.trim() || '',
       priority: prioritySelect?.value || 'medium',
+      category_id: categorySelect?.value || null,
       due_date: dueDateInput?.value || null
     }
 
     // 空文字列はnullに変換
     if (formData.due_date === '') {
       formData.due_date = null
+    }
+    if (formData.category_id === '') {
+      formData.category_id = null
     }
 
     return formData
@@ -420,6 +416,60 @@ export class TaskForm extends BaseComponent {
     
     this.validationErrors = {}
     this.currentTask = null
+  }
+
+  // カテゴリオプションを更新
+  async updateCategoryOptions() {
+    try {
+      const categories = await this.database.getAllCategories()
+      const categorySelect = this.getElement('categorySelect')
+      
+      if (!categorySelect) {
+        logger.warn('Category select element not found')
+        return
+      }
+
+      // 既存のオプションをクリア（最初の「未分類」オプション以外）
+      const firstOption = categorySelect.querySelector('option[value=""]')
+      categorySelect.innerHTML = ''
+      if (firstOption) {
+        categorySelect.appendChild(firstOption.cloneNode(true))
+      } else {
+        const uncategorizedOption = document.createElement('option')
+        uncategorizedOption.value = ''
+        uncategorizedOption.textContent = '未分類'
+        categorySelect.appendChild(uncategorizedOption)
+      }
+
+      // カテゴリオプションを追加
+      categories.forEach(category => {
+        const option = document.createElement('option')
+        option.value = category.id
+        option.textContent = category.name
+        option.style.backgroundColor = category.color + '20' // 薄い背景色
+        categorySelect.appendChild(option)
+      })
+      
+      logger.info('Category options updated:', categories.length)
+    } catch (error) {
+      logger.error('Failed to update category options:', error)
+    }
+  }
+
+  // レンダリング前にカテゴリオプションを更新
+  async render(mode, task = null) {
+    this.validateRenderParams(mode, task)
+    
+    this.mode = mode
+    this.currentTask = task ? { ...task } : null
+    
+    // カテゴリオプションを更新
+    await this.updateCategoryOptions()
+    
+    this.updateModalTitle()
+    this.setFormData(task || {})
+    this.clearValidationErrors()
+    this.updateFormState()
   }
 
   // デバッグ用情報

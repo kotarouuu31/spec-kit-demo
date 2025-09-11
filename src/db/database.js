@@ -81,6 +81,17 @@ export class TaskDatabase {
     }
 
     try {
+      // categoriesテーブルの作成
+      this.db.exec(`
+        CREATE TABLE IF NOT EXISTS categories (
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT NOT NULL UNIQUE CHECK(length(name) > 0),
+          color TEXT NOT NULL DEFAULT '#6366f1' CHECK(length(color) = 7 AND color LIKE '#%'),
+          created_at TEXT NOT NULL,
+          updated_at TEXT NOT NULL
+        )
+      `)
+
       // tasksテーブルの作成
       this.db.exec(`
         CREATE TABLE IF NOT EXISTS tasks (
@@ -89,9 +100,16 @@ export class TaskDatabase {
           priority TEXT NOT NULL DEFAULT 'medium' CHECK(priority IN ('low', 'medium', 'high')),
           due_date TEXT NULL,
           completed INTEGER NOT NULL DEFAULT 0 CHECK(completed IN (0, 1)),
+          category_id INTEGER NULL REFERENCES categories(id) ON DELETE SET NULL,
           created_at TEXT NOT NULL,
           updated_at TEXT NOT NULL
         )
+      `)
+
+      // categoriesテーブルのインデックス
+      this.db.exec(`
+        CREATE INDEX IF NOT EXISTS idx_categories_name ON categories(name);
+        CREATE INDEX IF NOT EXISTS idx_categories_created_at ON categories(created_at);
       `)
 
       // 基本インデックスの作成
@@ -99,6 +117,7 @@ export class TaskDatabase {
         CREATE INDEX IF NOT EXISTS idx_tasks_completed ON tasks(completed);
         CREATE INDEX IF NOT EXISTS idx_tasks_priority ON tasks(priority);
         CREATE INDEX IF NOT EXISTS idx_tasks_due_date ON tasks(due_date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_category_id ON tasks(category_id);
         CREATE INDEX IF NOT EXISTS idx_tasks_created_at ON tasks(created_at);
       `)
 
@@ -106,12 +125,13 @@ export class TaskDatabase {
       this.db.exec(`
         CREATE INDEX IF NOT EXISTS idx_tasks_completed_priority ON tasks(completed, priority);
         CREATE INDEX IF NOT EXISTS idx_tasks_completed_due_date ON tasks(completed, due_date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_completed_category ON tasks(completed, category_id);
         CREATE INDEX IF NOT EXISTS idx_tasks_priority_created_at ON tasks(priority, created_at);
       `)
 
       // 統計情報取得用の複合インデックス
       this.db.exec(`
-        CREATE INDEX IF NOT EXISTS idx_tasks_stats ON tasks(completed, priority, due_date);
+        CREATE INDEX IF NOT EXISTS idx_tasks_stats ON tasks(completed, priority, due_date, category_id);
       `)
 
       // データベース統計の更新
@@ -161,6 +181,35 @@ export class TaskDatabase {
         throw new ValidationError('Completed must be 0 or 1')
       }
     }
+
+    // カテゴリIDのバリデーション
+    if (taskData.hasOwnProperty('category_id') && taskData.category_id !== null) {
+      if (!Number.isInteger(taskData.category_id) || taskData.category_id <= 0) {
+        throw new ValidationError('Category ID must be a positive integer')
+      }
+    }
+  }
+
+  // カテゴリデータのバリデーション
+  _validateCategoryData(categoryData, isUpdate = false) {
+    if (!categoryData || typeof categoryData !== 'object') {
+      throw new ValidationError('Category data must be an object')
+    }
+
+    // 名前のバリデーション
+    if (!isUpdate || categoryData.hasOwnProperty('name')) {
+      if (!categoryData.name || typeof categoryData.name !== 'string' || categoryData.name.trim().length === 0) {
+        throw new ValidationError('Category name is required and cannot be empty')
+      }
+    }
+
+    // 色のバリデーション
+    if (categoryData.hasOwnProperty('color')) {
+      if (!categoryData.color || typeof categoryData.color !== 'string' || 
+          !/^#[0-9A-Fa-f]{6}$/.test(categoryData.color)) {
+        throw new ValidationError('Color must be in hex format (#RRGGBB)')
+      }
+    }
   }
 
   // 日付フォーマットのバリデーション
@@ -199,14 +248,15 @@ export class TaskDatabase {
       const now = new Date().toISOString()
       
       const stmt = this.db.prepare(`
-        INSERT INTO tasks (text, priority, due_date, created_at, updated_at)
-        VALUES (?, ?, ?, ?, ?)
+        INSERT INTO tasks (text, priority, due_date, category_id, created_at, updated_at)
+        VALUES (?, ?, ?, ?, ?, ?)
       `)
 
       const result = stmt.run(
         taskData.text.trim(),
         taskData.priority || 'medium',
         taskData.due_date || null,
+        taskData.category_id || null,
         now,
         now
       )
@@ -340,6 +390,10 @@ export class TaskDatabase {
       if (updates.hasOwnProperty('completed')) {
         updateFields.push('completed = ?')
         values.push(updates.completed)
+      }
+      if (updates.hasOwnProperty('category_id')) {
+        updateFields.push('category_id = ?')
+        values.push(updates.category_id)
       }
 
       if (updateFields.length === 0) {
@@ -502,6 +556,222 @@ export class TaskDatabase {
       this.db.backup(targetPath)
     } catch (error) {
       this._handleDbError(error, 'backup')
+    }
+  }
+
+  // ===== カテゴリ管理メソッド =====
+
+  // カテゴリ作成
+  createCategory(categoryData) {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'createCategory')
+    }
+
+    this._validateCategoryData(categoryData)
+
+    try {
+      const now = new Date().toISOString()
+      
+      const stmt = this.db.prepare(`
+        INSERT INTO categories (name, color, created_at, updated_at)
+        VALUES (?, ?, ?, ?)
+      `)
+
+      const result = stmt.run(
+        categoryData.name.trim(),
+        categoryData.color || '#6366f1',
+        now,
+        now
+      )
+
+      return this.getCategoryById(result.lastInsertRowid)
+    } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw new ValidationError(`Category name '${categoryData.name}' already exists`)
+      }
+      this._handleDbError(error, 'createCategory')
+    }
+  }
+
+  // 全カテゴリの取得
+  getAllCategories() {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getAllCategories')
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM categories 
+        ORDER BY created_at ASC
+      `)
+      return stmt.all()
+    } catch (error) {
+      this._handleDbError(error, 'getAllCategories')
+    }
+  }
+
+  // ID指定でカテゴリ取得
+  getCategoryById(id) {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getCategoryById')
+    }
+
+    try {
+      const stmt = this.db.prepare('SELECT * FROM categories WHERE id = ?')
+      return stmt.get(id) || null
+    } catch (error) {
+      this._handleDbError(error, 'getCategoryById')
+    }
+  }
+
+  // カテゴリ更新
+  updateCategory(id, updates) {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'updateCategory')
+    }
+
+    const existingCategory = this.getCategoryById(id)
+    if (!existingCategory) {
+      throw new NotFoundError(`Category with id ${id} not found`)
+    }
+
+    this._validateCategoryData(updates, true)
+
+    try {
+      const updateFields = []
+      const values = []
+
+      if (updates.hasOwnProperty('name')) {
+        updateFields.push('name = ?')
+        values.push(updates.name.trim())
+      }
+      if (updates.hasOwnProperty('color')) {
+        updateFields.push('color = ?')
+        values.push(updates.color)
+      }
+
+      if (updateFields.length === 0) {
+        return existingCategory
+      }
+
+      updateFields.push('updated_at = ?')
+      values.push(new Date().toISOString())
+      values.push(id)
+
+      const stmt = this.db.prepare(`
+        UPDATE categories 
+        SET ${updateFields.join(', ')}
+        WHERE id = ?
+      `)
+
+      stmt.run(...values)
+      return this.getCategoryById(id)
+    } catch (error) {
+      if (error.code === 'SQLITE_CONSTRAINT_UNIQUE') {
+        throw new ValidationError(`Category name '${updates.name}' already exists`)
+      }
+      this._handleDbError(error, 'updateCategory')
+    }
+  }
+
+  // カテゴリ削除
+  deleteCategory(id) {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'deleteCategory')
+    }
+
+    try {
+      const stmt = this.db.prepare('DELETE FROM categories WHERE id = ?')
+      const result = stmt.run(id)
+      return result.changes > 0
+    } catch (error) {
+      this._handleDbError(error, 'deleteCategory')
+    }
+  }
+
+  // カテゴリ別タスク取得
+  getTasksByCategory(categoryId) {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getTasksByCategory')
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT t.*, c.name as category_name, c.color as category_color
+        FROM tasks t
+        LEFT JOIN categories c ON t.category_id = c.id
+        WHERE t.category_id = ?
+        ORDER BY t.created_at DESC
+      `)
+      return stmt.all(categoryId)
+    } catch (error) {
+      this._handleDbError(error, 'getTasksByCategory')
+    }
+  }
+
+  // カテゴリなしタスク取得
+  getTasksWithoutCategory() {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getTasksWithoutCategory')
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT * FROM tasks 
+        WHERE category_id IS NULL
+        ORDER BY created_at DESC
+      `)
+      return stmt.all()
+    } catch (error) {
+      this._handleDbError(error, 'getTasksWithoutCategory')
+    }
+  }
+
+  // カテゴリ統計取得
+  getCategoryStats() {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getCategoryStats')
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT 
+          c.id,
+          c.name,
+          c.color,
+          COUNT(t.id) as total_tasks,
+          SUM(CASE WHEN t.completed = 0 THEN 1 ELSE 0 END) as active_tasks,
+          SUM(CASE WHEN t.completed = 1 THEN 1 ELSE 0 END) as completed_tasks
+        FROM categories c
+        LEFT JOIN tasks t ON c.id = t.category_id
+        GROUP BY c.id, c.name, c.color
+        ORDER BY c.created_at ASC
+      `)
+      return stmt.all()
+    } catch (error) {
+      this._handleDbError(error, 'getCategoryStats')
+    }
+  }
+
+  // JOIN付き全タスク取得
+  getAllTasksWithCategories() {
+    if (!this.isConnected()) {
+      throw new DatabaseError('Database is not connected', 'getAllTasksWithCategories')
+    }
+
+    try {
+      const stmt = this.db.prepare(`
+        SELECT 
+          t.*,
+          c.name as category_name,
+          c.color as category_color
+        FROM tasks t
+        LEFT JOIN categories c ON t.category_id = c.id
+        ORDER BY t.created_at DESC
+      `)
+      return stmt.all()
+    } catch (error) {
+      this._handleDbError(error, 'getAllTasksWithCategories')
     }
   }
 }
