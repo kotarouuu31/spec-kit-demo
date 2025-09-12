@@ -1,18 +1,17 @@
 // TaskListクラス - タスクリスト表示管理
 import { format } from 'date-fns'
 import { ja } from 'date-fns/locale'
+import { BaseComponent } from '../utils/dom-helpers.js'
+import { EventHelper } from '../utils/event-helpers.js'
 
-export class TaskList {
+export class TaskList extends BaseComponent {
   constructor(container, database) {
-    if (!container || !(container instanceof HTMLElement)) {
-      throw new Error('Container must be a valid HTML element')
-    }
+    super(container)
     
     if (!database) {
       throw new Error('Database must be provided')
     }
 
-    this.container = container
     this.database = database
     this.tasks = []
     this.taskElements = new Map()
@@ -29,16 +28,14 @@ export class TaskList {
 
   // DOM要素をキャッシュ
   cacheElements() {
-    this.elements = {
-      listContent: this.container.querySelector('#task-list-content, .task-list-content'),
-      emptyState: this.container.querySelector('#empty-state, .empty-state'),
-      refreshButton: this.container.querySelector('[data-action="refresh"], .refresh-button')
-    }
+    this.cacheElement('listContent', '#task-list-content, .task-list-content')
+    this.cacheElement('emptyState', '#empty-state, .empty-state')
+    this.cacheElement('refreshButton', '[data-action="refresh"], .refresh-button')
 
     // task-list-content が存在しない場合は作成
-    if (!this.elements.listContent) {
-      this.elements.listContent = this.container.querySelector('.task-list-content') || 
-                                 this.createTaskListContent()
+    if (!this.getElement('listContent')) {
+      const content = this.createTaskListContent()
+      this.elements.set('listContent', content)
     }
   }
 
@@ -64,28 +61,24 @@ export class TaskList {
   // イベントリスナー設定
   setupEventListeners() {
     // リフレッシュボタン
-    if (this.elements.refreshButton) {
-      this.elements.refreshButton.addEventListener('click', (e) => {
-        e.preventDefault()
-        this.refresh()
-      })
-    }
+    this.addEventListenerSafe('refreshButton', 'click', (e) => {
+      e.preventDefault()
+      this.refresh()
+    })
 
     // コンテナ全体でのイベント委任
-    if (this.elements.listContent) {
-      this.elements.listContent.addEventListener('click', (e) => {
-        this.handleTaskItemClick(e)
-      })
+    this.addEventListenerSafe('listContent', 'click', (e) => {
+      this.handleTaskItemClick(e)
+    })
 
-      this.elements.listContent.addEventListener('change', (e) => {
-        this.handleTaskItemChange(e)
-      })
-    }
+    this.addEventListenerSafe('listContent', 'change', (e) => {
+      this.handleTaskItemChange(e)
+    })
 
     // キーボードナビゲーション
-    this.container.addEventListener('keydown', (e) => {
+    this.container.addEventListener('keydown', EventHelper.createSafeHandler((e) => {
       this.handleKeyboardNavigation(e)
-    })
+    }))
   }
 
   // タスクレンダリング
@@ -110,7 +103,8 @@ export class TaskList {
 
   // タスクリストをレンダリング
   renderTasks(options = {}) {
-    if (!this.elements.listContent) return
+    const listContent = this.getElement('listContent')
+    if (!listContent) return
 
     // フラグメントを使用してパフォーマンス向上
     const fragment = document.createDocumentFragment()
@@ -121,7 +115,7 @@ export class TaskList {
       fragment.appendChild(taskElement)
     })
 
-    this.elements.listContent.appendChild(fragment)
+    listContent.appendChild(fragment)
   }
 
   // タスク要素を作成
@@ -254,23 +248,29 @@ export class TaskList {
 
   // 空状態を表示
   showEmptyState(hasAllTasks = false) {
-    if (this.elements.listContent) {
-      this.elements.listContent.style.display = 'none'
+    const listContent = this.getElement('listContent')
+    const emptyState = this.getElement('emptyState')
+    
+    if (listContent) {
+      listContent.style.display = 'none'
     }
 
-    if (this.elements.emptyState) {
-      this.elements.emptyState.style.display = 'flex'
+    if (emptyState) {
+      emptyState.style.display = 'flex'
     }
   }
 
   // 空状態を非表示
   hideEmptyState() {
-    if (this.elements.emptyState) {
-      this.elements.emptyState.style.display = 'none'
+    const emptyState = this.getElement('emptyState')
+    const listContent = this.getElement('listContent')
+    
+    if (emptyState) {
+      emptyState.style.display = 'none'
     }
 
-    if (this.elements.listContent) {
-      this.elements.listContent.style.display = 'block'
+    if (listContent) {
+      listContent.style.display = 'block'
     }
   }
 
@@ -306,12 +306,12 @@ export class TaskList {
     if (!task) return
 
     if (target.classList.contains('edit-button') || target.getAttribute('data-action') === 'edit') {
-      this.dispatchEvent('task-edit', {
+      EventHelper.dispatchCustomEvent(this.container, 'task-edit', {
         taskId,
         task: { ...task }
       })
     } else if (target.classList.contains('delete-button') || target.getAttribute('data-action') === 'delete') {
-      this.dispatchEvent('task-delete', {
+      EventHelper.dispatchCustomEvent(this.container, 'task-delete', {
         taskId,
         task: { ...task }
       })
@@ -326,7 +326,7 @@ export class TaskList {
       const taskId = parseInt(target.getAttribute('data-task-id'))
       
       if (taskId) {
-        this.dispatchEvent('task-toggle', {
+        EventHelper.dispatchCustomEvent(this.container, 'task-toggle', {
           taskId,
           checked: target.checked
         })
@@ -383,16 +383,18 @@ export class TaskList {
   clearTaskElements() {
     this.taskElements.clear()
     
-    if (this.elements.listContent) {
-      this.elements.listContent.innerHTML = ''
+    const listContent = this.getElement('listContent')
+    if (listContent) {
+      listContent.innerHTML = ''
     }
   }
 
   // ARIA ラベルを更新
   updateAriaLabels() {
-    if (this.elements.listContent) {
-      this.elements.listContent.setAttribute('role', 'list')
-      this.elements.listContent.setAttribute('aria-label', `タスクリスト（${this.tasks.length}件）`)
+    const listContent = this.getElement('listContent')
+    if (listContent) {
+      listContent.setAttribute('role', 'list')
+      listContent.setAttribute('aria-label', `タスクリスト（${this.tasks.length}件）`)
     }
 
     // 各タスクアイテムにもARIAラベルを設定
@@ -403,16 +405,6 @@ export class TaskList {
     })
   }
 
-  // カスタムイベントを発行
-  dispatchEvent(eventType, detail = {}) {
-    const event = new CustomEvent(eventType, {
-      detail,
-      bubbles: true,
-      cancelable: false
-    })
-    
-    this.container.dispatchEvent(event)
-  }
 
   // パフォーマンス最適化: 仮想スクロール（将来の実装用）
   enableVirtualScrolling(itemHeight = 80, bufferSize = 5) {
@@ -448,7 +440,9 @@ export class TaskList {
     }
     
     this.tasks = []
-    this.elements = {}
+    
+    // BaseComponentのdestroyを呼び出し
+    super.destroy()
   }
 
   // デバッグ用情報
@@ -456,7 +450,7 @@ export class TaskList {
     return {
       tasksCount: this.tasks.length,
       taskElementsCount: this.taskElements.size,
-      elementsFound: Object.keys(this.elements).filter(key => this.elements[key] !== null),
+      elementsFound: Array.from(this.elements.keys()).filter(key => this.getElement(key) !== null),
       isEmpty: this.tasks.length === 0
     }
   }

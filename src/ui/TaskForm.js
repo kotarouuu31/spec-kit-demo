@@ -1,7 +1,8 @@
 // TaskFormクラス - タスクフォーム管理
 import { BaseComponent, DOMHelper } from '../utils/dom-helpers.js'
 import { taskValidator } from '../utils/validation.js'
-import { logger } from '../utils/logger.js'
+import { logger, ErrorHandler } from '../utils/logger.js'
+import { EventHelper } from '../utils/event-helpers.js'
 
 export class TaskForm extends BaseComponent {
   constructor(container, database) {
@@ -15,6 +16,7 @@ export class TaskForm extends BaseComponent {
     this.mode = 'create' // 'create' or 'edit'
     this.currentTask = null
     this.validationErrors = {}
+    this.errorHandler = new ErrorHandler(logger)
 
     this.init()
   }
@@ -211,7 +213,7 @@ export class TaskForm extends BaseComponent {
 
   // フォーム送信処理
   async handleFormSubmit() {
-    try {
+    return await this.errorHandler.safeAsync(async () => {
       const validation = this.validate()
       
       if (!validation.isValid) {
@@ -224,18 +226,14 @@ export class TaskForm extends BaseComponent {
       
       if (this.mode === 'create') {
         savedTask = this.database.createTask(formData)
-        this.dispatchEvent('task-created', { task: savedTask })
+        EventHelper.dispatchCustomEvent(this.container, 'task-created', { task: savedTask })
       } else {
         savedTask = this.database.updateTask(this.currentTask.id, formData)
-        this.dispatchEvent('task-updated', { task: savedTask })
+        EventHelper.dispatchCustomEvent(this.container, 'task-updated', { task: savedTask })
       }
       
       return savedTask
-      
-    } catch (error) {
-      console.error('Form submission error:', error)
-      throw error
-    }
+    }, 'task-form-submit')
   }
 
   // 保存メソッド（公開API）
@@ -245,7 +243,7 @@ export class TaskForm extends BaseComponent {
 
   // キャンセル処理
   handleCancel() {
-    this.dispatchEvent('form-cancel', {
+    EventHelper.dispatchCustomEvent(this.container, 'form-cancel', {
       mode: this.mode,
       taskId: this.currentTask?.id || null
     })
@@ -343,16 +341,6 @@ export class TaskForm extends BaseComponent {
     }
   }
 
-  // カスタムイベント発行
-  dispatchEvent(eventType, detail = {}) {
-    const event = new CustomEvent(eventType, {
-      detail,
-      bubbles: true,
-      cancelable: false
-    })
-    
-    this.container.dispatchEvent(event)
-  }
 
   // アクセシビリティの設定
   updateAriaLabels() {
@@ -420,7 +408,7 @@ export class TaskForm extends BaseComponent {
 
   // カテゴリオプションを更新
   async updateCategoryOptions() {
-    try {
+    return await this.errorHandler.safeAsync(async () => {
       const categories = await this.database.getAllCategories()
       const categorySelect = this.getElement('categorySelect')
       
@@ -451,9 +439,7 @@ export class TaskForm extends BaseComponent {
       })
       
       logger.info('Category options updated:', categories.length)
-    } catch (error) {
-      logger.error('Failed to update category options:', error)
-    }
+    }, 'update-category-options')
   }
 
   // レンダリング前にカテゴリオプションを更新

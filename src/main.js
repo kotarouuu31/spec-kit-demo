@@ -7,6 +7,7 @@ import { FilterControls } from './ui/FilterControls.js'
 import { CategoryManager } from './ui/CategoryManager.js'
 import { NotificationManager } from './ui/NotificationManager.js'
 import { logger, ErrorHandler } from './utils/logger.js'
+import { EventHelper } from './utils/event-helpers.js'
 
 // グローバル状態管理
 class TodoApp {
@@ -138,78 +139,71 @@ class TodoApp {
 
   // イベントリスナー設定（統合・エラーハンドリング強化）
   setupEventListeners() {
-    // 中央集権的なイベントハンドラーでエラーキャッチ
-    const safeEventHandler = (handler) => {
-      return (event) => {
-        try {
-          handler(event)
-        } catch (error) {
-          console.error('イベントハンドリング中にエラーが発生:', error)
-          this.components.notifications?.showError('操作中にエラーが発生しました')
-        }
-      }
+    // エラーコールバックを定義
+    const errorCallback = (error) => {
+      this.components.notifications?.showError('操作中にエラーが発生しました')
     }
 
     // ヘッダーイベント
-    this.components.header.container.addEventListener('add-task-requested', safeEventHandler((event) => {
+    this.components.header.container.addEventListener('add-task-requested', EventHelper.createSafeHandler((event) => {
       this.logger.debug('新規タスク追加リクエスト受信', event.detail)
       this.openTaskForm('create')
-    }))
+    }, errorCallback))
 
-    this.components.header.container.addEventListener('manage-categories-requested', safeEventHandler((event) => {
+    this.components.header.container.addEventListener('manage-categories-requested', EventHelper.createSafeHandler((event) => {
       this.logger.debug('カテゴリ管理リクエスト受信', event.detail)
       this.openCategoryManager()
-    }))
+    }, errorCallback))
 
-    this.components.header.container.addEventListener('stats-updated', safeEventHandler((event) => {
+    this.components.header.container.addEventListener('stats-updated', EventHelper.createSafeHandler((event) => {
       // 統計更新の通知をコンソールに記録
       console.log('統計更新:', event.detail.stats)
-    }))
+    }, errorCallback))
 
     // フォームイベント
-    this.components.form.container.addEventListener('task-created', safeEventHandler((event) => {
-      this.handleTaskCreated(event.detail.task)
-    }))
+    this.components.form.container.addEventListener('task-created', EventHelper.createSafeAsyncHandler(async (event) => {
+      await this.handleTaskCreated(event.detail.task)
+    }, errorCallback))
 
-    this.components.form.container.addEventListener('task-updated', safeEventHandler((event) => {
-      this.handleTaskUpdated(event.detail.task)
-    }))
+    this.components.form.container.addEventListener('task-updated', EventHelper.createSafeAsyncHandler(async (event) => {
+      await this.handleTaskUpdated(event.detail.task)
+    }, errorCallback))
 
-    this.components.form.container.addEventListener('form-cancel', safeEventHandler(() => {
+    this.components.form.container.addEventListener('form-cancel', EventHelper.createSafeHandler(() => {
       this.closeTaskForm()
-    }))
+    }, errorCallback))
 
     // フィルターイベント
-    this.components.filters.container.addEventListener('filters-changed', safeEventHandler((event) => {
-      this.handleFiltersChanged(event.detail.filters)
-    }))
+    this.components.filters.container.addEventListener('filters-changed', EventHelper.createSafeAsyncHandler(async (event) => {
+      await this.handleFiltersChanged(event.detail.filters)
+    }, errorCallback))
 
-    this.components.filters.container.addEventListener('filters-reset', safeEventHandler(() => {
-      this.handleFiltersReset()
-    }))
+    this.components.filters.container.addEventListener('filters-reset', EventHelper.createSafeAsyncHandler(async () => {
+      await this.handleFiltersReset()
+    }, errorCallback))
 
     // タスクリストイベント
-    this.components.taskList.container.addEventListener('task-toggle', safeEventHandler((event) => {
-      this.handleTaskToggle(event.detail.taskId)
-    }))
+    this.components.taskList.container.addEventListener('task-toggle', EventHelper.createSafeAsyncHandler(async (event) => {
+      await this.handleTaskToggle(event.detail.taskId)
+    }, errorCallback))
 
-    this.components.taskList.container.addEventListener('task-edit', safeEventHandler((event) => {
+    this.components.taskList.container.addEventListener('task-edit', EventHelper.createSafeHandler((event) => {
       this.openTaskForm('edit', event.detail.task)
-    }))
+    }, errorCallback))
 
-    this.components.taskList.container.addEventListener('task-delete', safeEventHandler((event) => {
-      this.handleTaskDelete(event.detail.taskId, event.detail.task)
-    }))
+    this.components.taskList.container.addEventListener('task-delete', EventHelper.createSafeAsyncHandler(async (event) => {
+      await this.handleTaskDelete(event.detail.taskId, event.detail.task)
+    }, errorCallback))
 
     // 通知イベント
-    this.components.notifications.container.addEventListener('notification-action', safeEventHandler((event) => {
+    this.components.notifications.container.addEventListener('notification-action', EventHelper.createSafeHandler((event) => {
       console.log('通知アクション実行:', event.detail)
-    }))
+    }, errorCallback))
 
     // キーボードショートカット
-    document.addEventListener('keydown', safeEventHandler((event) => {
+    document.addEventListener('keydown', EventHelper.createSafeHandler((event) => {
       this.handleKeyboardShortcuts(event)
-    }))
+    }, errorCallback))
 
     // ページ離脱前の処理
     window.addEventListener('beforeunload', () => {
@@ -218,13 +212,11 @@ class TodoApp {
 
     // アプリケーション全体のエラーハンドリング
     window.addEventListener('error', (event) => {
-      console.error('グローバルエラー:', event.error)
-      this.components.notifications?.showError('予期しないエラーが発生しました')
+      this.handleGlobalError(event.error)
     })
 
     window.addEventListener('unhandledrejection', (event) => {
-      console.error('未処理のPromise拒否:', event.reason)
-      this.components.notifications?.showError('非同期処理でエラーが発生しました')
+      this.handleGlobalError(event.reason)
     })
   }
 
@@ -555,18 +547,6 @@ class TodoApp {
   }
 }
 
-// グローバルエラーハンドラー設定
-window.addEventListener('error', (event) => {
-  if (window.todoApp) {
-    window.todoApp.handleGlobalError(event.error)
-  }
-})
-
-window.addEventListener('unhandledrejection', (event) => {
-  if (window.todoApp) {
-    window.todoApp.handleGlobalError(event.reason)
-  }
-})
 
 // アプリケーション初期化
 document.addEventListener('DOMContentLoaded', async () => {
