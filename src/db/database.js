@@ -1,29 +1,6 @@
 import Database from 'better-sqlite3'
 import { format } from 'date-fns'
-
-// カスタムエラークラス
-export class DatabaseError extends Error {
-  constructor(message, operation = null, sqliteError = null) {
-    super(message)
-    this.name = 'DatabaseError'
-    this.operation = operation
-    this.sqliteError = sqliteError
-  }
-}
-
-export class ValidationError extends Error {
-  constructor(message) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
-
-export class NotFoundError extends Error {
-  constructor(message) {
-    super(message)
-    this.name = 'NotFoundError'
-  }
-}
+import { DatabaseError, ValidationError, NotFoundError } from '../utils/errors.js'
 
 // TaskDatabaseクラス - SQLiteを使用したタスク管理
 export class TaskDatabase {

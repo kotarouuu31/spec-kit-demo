@@ -1,28 +1,6 @@
 // ブラウザ用データベース - LocalStorageを使用
 import { format } from 'date-fns'
-
-// カスタムエラークラス
-export class DatabaseError extends Error {
-  constructor(message, operation = null) {
-    super(message)
-    this.name = 'DatabaseError'
-    this.operation = operation
-  }
-}
-
-export class ValidationError extends Error {
-  constructor(message) {
-    super(message)
-    this.name = 'ValidationError'
-  }
-}
-
-export class NotFoundError extends Error {
-  constructor(message) {
-    super(message)
-    this.name = 'NotFoundError'
-  }
-}
+import { DatabaseError, ValidationError, NotFoundError } from '../utils/errors.js'
 
 export class TaskDatabase {
   constructor(dbName = 'todo-app') {
