@@ -1,0 +1,290 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>個人用 ToDo アプリ</title>
+    <meta name="description" content="シンプルで直感的な個人用タスク管理アプリケーション">
+    
+    <!-- PWA対応 -->
+    <meta name="theme-color" content="#2563eb">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="default">
+    <meta name="apple-mobile-web-app-title" content="ToDo アプリ">
+    
+    <!-- ファビコン -->
+    <link rel="icon" type="image/svg+xml" href="/vite.svg">
+    <link rel="apple-touch-icon" href="/vite.svg">
+    
+    <!-- フォント -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <!-- CSSファイル -->
+    <link rel="stylesheet" href="/src/styles/main.css">
+</head>
+<body>
+    <!-- スキップリンク（アクセシビリティ改善） -->
+    <a href="#main-content" class="skip-link">メインコンテンツにスキップ</a>
+    
+    <div id="app" class="app" role="application" aria-label="個人用 ToDo アプリ">
+        <!-- アプリケーションヘッダー -->
+        <header id="app-header" class="app-header">
+            <div class="header-content">
+                <div class="header-left">
+                    <h1 class="app-title">
+                        <span class="title-icon">📋</span>
+                        <span class="title-text">ToDo アプリ</span>
+                    </h1>
+                    <div class="current-date" id="current-date">
+                        <!-- 現在の日付が動的に表示される -->
+                    </div>
+                </div>
+                
+                <div class="header-center">
+                    <div class="task-stats" id="task-stats">
+                        <div class="stat-item">
+                            <span class="stat-label">全体</span>
+                            <span class="stat-value total-count" data-stat="total">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">アクティブ</span>
+                            <span class="stat-value active-count" data-stat="active">0</span>
+                        </div>
+                        <div class="stat-item">
+                            <span class="stat-label">完了</span>
+                            <span class="stat-value completed-count" data-stat="completed">0</span>
+                        </div>
+                        <div class="stat-item overdue-warning" data-stat="overdue" style="display: none;">
+                            <span class="stat-label">期限切れ</span>
+                            <span class="stat-value overdue-count">0</span>
+                        </div>
+                    </div>
+                    
+                    <div class="progress-container">
+                        <div class="progress-bar" data-element="progress">
+                            <div class="progress-fill" data-element="progress-fill" style="width: 0%;"></div>
+                        </div>
+                        <div class="progress-text">
+                            <span class="progress-percentage">0%</span> 完了
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="header-right">
+                    <button class="manage-categories-button" data-action="manage-categories" type="button" title="カテゴリ管理">
+                        <span class="button-icon">🏷️</span>
+                        <span class="button-text">カテゴリ</span>
+                    </button>
+                    <button class="add-task-button" data-action="add-task" type="button">
+                        <span class="button-icon">➕</span>
+                        <span class="button-text">新規タスク</span>
+                    </button>
+                </div>
+            </div>
+        </header>
+
+        <!-- メインコンテンツ -->
+        <main id="main-content" class="main-content" role="main" aria-label="タスク管理メインエリア">
+            <!-- フィルターコントロール -->
+            <section id="filter-controls" class="filter-controls" role="complementary" aria-label="フィルター設定">
+                <div class="filter-section">
+                    <h3 class="filter-title">表示フィルター</h3>
+                    <div class="filter-buttons">
+                        <button class="filter-button filter-all active" data-show="all">
+                            全て
+                        </button>
+                        <button class="filter-button filter-active" data-show="active">
+                            アクティブ
+                        </button>
+                        <button class="filter-button filter-completed" data-show="completed">
+                            完了済み
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
+                    <h3 class="filter-title">優先度フィルター</h3>
+                    <div class="filter-buttons priority-filters">
+                        <button class="filter-button filter-high" data-priority="high">
+                            高
+                        </button>
+                        <button class="filter-button filter-medium" data-priority="medium">
+                            中
+                        </button>
+                        <button class="filter-button filter-low" data-priority="low">
+                            低
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
+                    <h3 class="filter-title">カテゴリフィルター</h3>
+                    <div class="filter-buttons category-filters" id="category-filters">
+                        <button class="filter-button filter-all-categories active" data-category="all">
+                            全て
+                        </button>
+                        <button class="filter-button filter-uncategorized" data-category="uncategorized">
+                            未分類
+                        </button>
+                        <!-- 動的にカテゴリボタンが追加される -->
+                    </div>
+                </div>
+
+                <div class="filter-section">
+                    <h3 class="filter-title">ソート</h3>
+                    <div class="sort-controls">
+                        <select class="sort-select" data-sort>
+                            <option value="created_at">作成日</option>
+                            <option value="updated_at">更新日</option>
+                            <option value="due_date">期日</option>
+                            <option value="priority">優先度</option>
+                            <option value="text">テキスト</option>
+                        </select>
+                        <button class="sort-order-button" data-sort-order="desc" title="降順">
+                            ⬇️
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="filter-section">
+                    <button class="clear-filters" data-action="clear">
+                        フィルタークリア
+                    </button>
+                </div>
+            </section>
+
+            <!-- タスクリスト -->
+            <section id="task-list" class="task-list" role="region" aria-label="タスクリスト">
+                <div class="task-list-header">
+                    <h2 class="task-list-title">タスク一覧</h2>
+                    <div class="task-list-actions">
+                        <button class="refresh-button" data-action="refresh" title="更新">
+                            🔄
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="task-list-content" id="task-list-content">
+                    <!-- タスクアイテムが動的に表示される -->
+                    <div class="empty-state" id="empty-state">
+                        <div class="empty-icon">📝</div>
+                        <h3 class="empty-title">タスクがありません</h3>
+                        <p class="empty-message">新規タスクを追加して始めましょう！</p>
+                    </div>
+                </div>
+            </section>
+        </main>
+
+        <!-- タスクフォームモーダル -->
+        <div id="task-form-modal" class="modal" style="display: none;">
+            <div class="modal-backdrop"></div>
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h2 class="modal-title" id="modal-title">新規タスク作成</h2>
+                    <button class="modal-close" data-action="close" type="button">
+                        ✕
+                    </button>
+                </div>
+                
+                <form class="task-form" id="task-form">
+                    <div class="form-group">
+                        <label for="task-text" class="form-label">
+                            タスク内容 <span class="required">*</span>
+                        </label>
+                        <textarea
+                            id="task-text"
+                            name="text"
+                            class="form-input"
+                            placeholder="やるべきことを入力してください..."
+                            rows="3"
+                            required
+                            aria-describedby="task-text-error"
+                        ></textarea>
+                        <div class="form-error" id="task-text-error"></div>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="task-priority" class="form-label">優先度</label>
+                        <select id="task-priority" name="priority" class="form-input">
+                            <option value="low">低</option>
+                            <option value="medium" selected>中</option>
+                            <option value="high">高</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="task-category" class="form-label">カテゴリ</label>
+                        <select
+                            id="task-category"
+                            name="category_id"
+                            class="form-input"
+                            aria-describedby="task-category-error"
+                        >
+                            <option value="">未分類</option>
+                            <!-- カテゴリオプションは動的に追加される -->
+                        </select>
+                        <div class="form-error" id="task-category-error"></div>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="task-due-date" class="form-label">期日</label>
+                        <input
+                            type="date"
+                            id="task-due-date"
+                            name="due_date"
+                            class="form-input"
+                            aria-describedby="task-due-date-error"
+                        />
+                        <div class="form-error" id="task-due-date-error"></div>
+                    </div>
+                    
+                    <div class="form-actions">
+                        <button type="button" class="cancel-button" data-action="cancel">
+                            キャンセル
+                        </button>
+                        <button type="submit" class="save-button" data-action="save">
+                            <span class="button-text">保存</span>
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+
+        <!-- カテゴリ管理モーダル -->
+        <div id="category-manager-container">
+            <!-- CategoryManagerコンポーネントがここに追加される -->
+        </div>
+
+        <!-- 通知エリア -->
+        <div id="notifications" class="notifications">
+            <!-- 通知アイテムが動的に追加される -->
+        </div>
+
+        <!-- ローディングインジケーター -->
+        <div id="loading" class="loading" style="display: none;">
+            <div class="loading-spinner"></div>
+            <div class="loading-text">読み込み中...</div>
+        </div>
+    </div>
+
+    <!-- メインJavaScriptファイル -->
+    <script type="module" src="/src/main.js"></script>
+    
+    <!-- サービスワーカー登録（PWA対応） -->
+    <script>
+        if ('serviceWorker' in navigator) {
+            window.addEventListener('load', () => {
+                navigator.serviceWorker.register('/sw.js')
+                    .then(registration => {
+                        console.log('SW registered: ', registration);
+                    })
+                    .catch(registrationError => {
+                        console.log('SW registration failed: ', registrationError);
+                    });
+            });
+        }
+    </script>
+</body>
+</html>
